@@ -1,53 +1,140 @@
-require('dotenv').config();
-const readline = require('readline/promises') //This imports the built-in Node.js module readline that handles reading input from the terminal. By using the /promises version, you can use await instead of messy callbacks.
+import { config } from "dotenv";
+import readline from "readline/promises";
+import { GoogleGenAI } from "@google/genai";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
-const { GoogleGenAI } = require("@google/genai");
+config();
 
-const ai = new GoogleGenAI({apiKey : process.env.GEMINI_API_KEY}); //Creates a Gemini AI client  Uses your API key for authentication
+/* -------------------- SETUP -------------------- */
 
-const chatHistory =[];
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
 
-const rl=readline.createInterface({ //readline.createInterface: This initializes the connection.  input: Listens to what you type (process.stdin).  output: Allows the program to write back to the terminal (process.stdout).  async function(): This starts a function that can "pause" execution (using await) while waiting for the user to finish typing their response.
-    input : process.stdin,
-    output : process.stdout
-}); //another way to understand -> Read input from the keyboard  Write output to the terminal  Ask questions and wait for answers
+const mcpClient = new Client({
+  name: "example-client",
+  version: "1.0.0",
+});
 
-async function chatLoop(){
-    const question = await rl.question('You: '); //Prints You: in terminal  Pauses execution  Waits until user types and presses Enter
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-    chatHistory.push({
-        role:"user",
-        parts:[    //Gemini expects messages in a specific "parts" format (to allow for text, images, or files).
-            {
-                text:question,
-            }
-        ]
-    })
+const chatHistory = [];
+let tools = [];
 
-    const response=await ai.models.generateContent({ //This line is the “ask Gemini” line
-        model:"gemini-2.5-flash",
-        contents:chatHistory
-    })
+/* -------------------- CONNECT MCP -------------------- */
 
-    const responseText= response.text 
-    
-    chatHistory.push({
-        role:"model",
-        parts:[                                                       /*parts = [
-                                                                                    { text: "Look at this" },
-                                                                                    { image: ... },
-                                                                                    { text: "Is it clear?" }
-                                                                                ]*/
-            {
-                text:responseText,
-            }
-        ]
-    
-    })
+await mcpClient.connect(
+  new SSEClientTransport(new URL("http://localhost:3001/sse"))
+);
 
-     console.log(`AI: ${responseText}`)
-    
-    chatLoop()
+console.log("Connected to MCP server");
+
+/* -------------------- LOAD TOOLS -------------------- */
+
+const mcpTools = await mcpClient.listTools();
+
+tools = mcpTools.tools.map((tool) => ({
+  name: tool.name,
+  description: tool.description,
+  parameters: {
+    type: tool.inputSchema.type,
+    properties: tool.inputSchema.properties,
+    required: tool.inputSchema.required,
+  },
+}));
+
+/* -------------------- CHAT LOOP -------------------- */
+
+async function chatLoop() {
+  let awaitingUserInput = true;
+
+  while (true) {
+    /* ---------- USER INPUT PHASE ---------- */
+    if (awaitingUserInput) {
+      const question = await rl.question("You: ");
+
+      chatHistory.push({
+        role: "user",
+        parts: [{ text: question, type: "text" }],
+      });
+    }
+
+    awaitingUserInput = false;
+    console.log("Sending request to Gemini...");
+
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "models/gemini-2.5-flash", // ✅ REQUIRED PREFIX
+        contents: chatHistory,
+        config: {
+          tools: [{ functionDeclarations: tools }],
+        },
+      });
+    } catch (err) {
+      console.error("AI error:", err.message);
+      awaitingUserInput = true;
+      continue;
+    }
+
+    const candidate = response.candidates[0];
+    const part = candidate.content.parts[0];
+
+    /* ---------- TOOL CALL PHASE ---------- */
+    if (part.functionCall) {
+      const fn = part.functionCall;
+      console.log("Calling tool:", fn.name);
+
+      // 1️⃣ Save MODEL INTENT
+      chatHistory.push(candidate.content);
+
+      // 2️⃣ Execute tool
+      const toolResult = await mcpClient.callTool({
+        name: fn.name,
+        arguments: fn.args,
+      });
+
+      // 3️⃣ Normalize tool output → valid JSON
+      const rawText = toolResult?.content?.[0]?.text ?? "";
+      let parsedResult;
+
+      try {
+        parsedResult = JSON.parse(rawText);
+      } catch {
+        parsedResult = { result: rawText };
+      }
+
+      // 4️⃣ Send FUNCTION RESPONSE (STRICT Gemini schema)
+      chatHistory.push({
+        role: "function",
+        parts: [
+          {
+            functionResponse: {
+              name: fn.name,
+              response: parsedResult,
+            },
+          },
+        ],
+      });
+
+      // 🔁 Let Gemini respond — DO NOT ask user yet
+      continue;
+    }
+
+    /* ---------- FINAL MODEL RESPONSE ---------- */
+    if (part.text) {
+      console.log("AI:", part.text);
+      chatHistory.push(candidate.content);
+    }
+
+    awaitingUserInput = true;
+  }
 }
 
-    chatLoop() //initial question 
+/* -------------------- START -------------------- */
+
+chatLoop();
