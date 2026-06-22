@@ -1,0 +1,191 @@
+This code authenticates with the X API using environment variables, posts a tweet using twitter-api-v2, and returns an MCP-compatible response confirming the post.
+
+1️⃣ dotenv – loading secrets safely
+import { config } from "dotenv";
+config();
+
+
+This uses dotenv.
+
+What this does:
+
+Reads variables from a .env file
+
+Loads them into process.env
+
+-------------------------------------------------------------------
+
+2️⃣ Importing Twitter/X API client
+
+import { TwitterApi } from "twitter-api-v2";
+
+
+This uses twitter-api-v2.
+
+This library:
+
+Wraps X (Twitter) APIs
+
+Handles auth, headers, retries
+
+Gives clean methods like .tweet()
+
+--------------------------------------------------------------------------
+
+3️⃣ Creating the Twitter client
+const twitterClient = new TwitterApi({
+  appKey: process.env.TWITTER_API_KEY,
+  appSecret: process.env.TWITTER_API_SECRET,
+  accessToken: process.env.TWITTER_ACCESS_TOKEN,
+  accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET
+});
+
+What’s happening here?
+
+You are authenticating your app with X.
+
+Each key means:
+
+appKey → your app’s identity
+
+appSecret → app’s password
+
+accessToken → user permission
+
+accessSecret → user password
+
+👉 Together, they allow your server to:
+
+Act as YOU
+
+Post tweets
+
+Perform actions on X
+
+----------------------------------------------------------------------
+
+4️⃣ Exporting createPost
+export async function createPost(status) {
+
+
+This:
+
+Defines a function
+
+Makes it available to other files (like your MCP server)
+
+This is why you can do:
+
+import { createPost } from "./mcp.tool.js";
+
+---------------------------------------------------------------------------
+
+5️⃣ Posting the tweet
+const newPost = await twitterClient.v2.tweet(status);
+
+
+This line:
+
+Calls X’s v2 API
+
+Posts status as a tweet
+
+Waits for the result
+
+Example:
+
+status = "Hello from MCP!"
+
+
+👉 A real tweet is published.
+
+newPost contains:
+
+Tweet ID
+
+Metadata
+
+Response from X
+(you’re not using it yet, but it’s there)
+
+---------------------------------------------------------------------
+
+6️⃣ Returning MCP-compatible response
+return {
+  content: [
+    {
+      type: "text",
+      text: `Twitted : ${status}`
+    }
+  ]
+};
+
+
+This is VERY IMPORTANT.
+
+You are returning:
+
+An MCP response object
+
+Exactly what server.tool() expects
+
+So when MCP calls:
+
+return createPost(status);
+
+
+The AI receives:
+
+“Twitted : Hello from MCP!”
+
+-----------------------------------------------------------------------
+
+8️⃣ Full flow (connect everything 🧠)
+
+User: “Post hello on X”
+
+AI calls MCP tool createPost
+
+MCP validates input (status)
+
+createPost(status) runs
+
+X API posts the tweet
+
+MCP returns text response
+
+AI shows confirmation
+
+---------------------------------------
+
+WORKING OF API
+
+An API works by exposing HTTP endpoints that accept authenticated requests, 
+execute server-side logic, and return structured responses (usually JSON).
+
+Technical flow (concise)
+
+Client sends HTTP request
+
+POST /2/tweets
+Authorization: Bearer <token>
+Content-Type: application/json
+
+
+Server authenticates
+
+Verifies API keys / OAuth token
+
+Server executes action
+
+Validates input
+
+Performs operation (e.g., create post)
+
+Server responds
+
+{ "status": "success", "id": "123" }
+
+An API receives authenticated HTTP requests, runs predefined server logic, and returns structured responses to the client.
+
+That’s it

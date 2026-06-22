@@ -1,0 +1,780 @@
+1️⃣ What is Express?
+
+Express.js is a Node.js framework that helps you:
+
+1) Create a server
+
+2) Handle HTTP requests (GET, POST, PUT, DELETE)
+
+3) Build APIs easily
+
+import express from "express";
+means:
+👉 “Bring the Express package from node_modules into this file so I can use it.”
+
+express becomes a function
+You call it to create an app
+const app = express();
+Now app is your server
+
+Without Express (pure Node.js)
+
+import http from "http";
+
+const server = http.createServer((req, res) => {
+  if (req.url === "/") {
+    res.end("Hello");
+  }
+});
+
+server.listen(3000);
+
+---------------------------------------------------------------------------
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; is used to create an MCP-compatible server that allows AI models to discover and call backend tools.
+
+1️⃣ What is this package?
+
+@modelcontextprotocol/sdk is the official SDK for Model Context Protocol (MCP).
+
+👉 MCP is a standard way to let an AI (like Gemini, Claude, etc.)
+talk to your code, call your tools, and use your server functions.
+
+What is McpServer?
+
+McpServer is a class that helps you:
+
+1) Create an MCP-compatible server
+
+2) Register tools (like addTwoNumbers, createPost)
+
+3) Let AI discover & call those tools
+
+3️⃣ Why the { } (curly braces)?
+import { McpServer } from "...";
+
+
+This means:
+
+“Give me only McpServer from that file”
+
+The SDK exports many things, but you only need McpServer here.
+
+5️⃣ What happens after importing?
+
+After this line, you can do:
+
+const server = new McpServer({
+  name: "example-server",
+  version: "1.0.0"
+});
+
+Now:
+
+server = MCP server instance
+
+AI can connect
+
+AI can see tools
+
+AI can call tools
+
+When you wrote:
+
+server.tool("addTwoNumbers", ...);
+
+That method exists because of McpServer.
+
+Without importing it ❌ → your code would crash.
+
+7️⃣ Super simple analogy 🧠
+
+express → talks to browsers
+
+McpServer → talks to AI models
+
+Both are servers, just for different clients.
+
+----------------------------------------------------------------------------------------
+
+SSEServerTransport enables an MCP server to communicate with AI clients using Server-Sent Events, allowing continuous server-to-client messaging over HTTP.
+
+This enables SSE (Server-Sent Events)
+Meaning: server can push messages continuously to the client (not one-time like REST).
+
+1️⃣ First: what problem does this solve?
+
+Your MCP server needs a way to talk to an AI client.
+
+That “way of talking” is called a transport.
+
+👉 SSEServerTransport is one such transport
+
+2️⃣ What is SSE?
+
+SSE = Server-Sent Events
+
+📌 Meaning:
+
+Server can continuously send data
+
+Client stays connected
+
+Communication is one-way (server → client)
+
+3️⃣ Why MCP needs SSE
+
+In MCP:
+
+AI connects to your server
+
+AI listens for:
+
+tool results
+
+responses
+
+updates
+
+SSE is perfect because:
+
+No polling
+
+No reconnecting again & again
+
+Lightweight compared to WebSockets
+
+4️⃣ What is SSEServerTransport?
+
+SSEServerTransport is a class provided by the MCP SDK that:
+
+Uses Server-Sent Events
+
+Connects MCP server ↔ AI client
+
+Works nicely with Express
+
+So this line means:
+
+“Import the class that lets my MCP server communicate using SSE.”
+
+import express from "express";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+
+const app = express();
+const server = new McpServer({ name: "demo", version: "1.0.0" });
+
+app.get("/sse", (req, res) => {
+  const transport = new SSEServerTransport(req, res);
+  server.connect(transport);
+});
+
+app.listen(3000);
+
+What happens here?
+
+Browser / AI hits /sse
+
+SSE connection opens
+
+MCP server attaches to it
+
+AI can now call tools
+
+SSE vs other transports (important)
+Transport	   Direction	               Use
+SSE	         Server → Client	         Web / HTTP
+stdio	        Two-way	                 CLI tools
+WebSocket	    Two-way	              Heavy realtime apps
+
+-----------------------------------------------------------------------------------
+
+import { createPost } from "./mcp.tool.js";
+“Import createPost from a file named mcp.tool.js that is in the same directory as this file.
+This file” means the file where you wrote the import statement.
+
+-----------------------------------------------------------------------------------------------
+
+import { z } from "zod"; imports the Zod validation helper used to define and validate data schemas in JavaScript and TypeScript.
+
+1️⃣ What is zod?
+
+Zod is a validation library.
+
+👉 It is used to check (validate) whether data is:
+
+correct
+
+safe
+
+in the expected format
+
+Very useful for:
+
+APIs
+
+forms
+
+tool inputs (like MCP tools)
+
+2️⃣ What does this line mean?
+import { z } from "zod";
+
+
+Means:
+
+“Bring the z object from the zod package so I can use it in this file.”
+
+z is the main entry point of Zod.
+
+4️⃣ What is z actually?
+
+z is an object that contains many helpers like:
+
+z.string()
+z.number()
+z.boolean()
+z.object()
+z.array()
+
+
+Each of these creates a schema.
+
+5️⃣ Simple example (no MCP yet)
+import { z } from "zod";
+
+const userSchema = z.object({
+  name: z.string(),
+  age: z.number()
+});
+
+userSchema.parse({
+  name: "Niladri",
+  age: 20
+}); // ✅ valid
+
+
+❌ If age is wrong:
+
+userSchema.parse({
+  name: "Niladri",
+  age: "twenty"
+});
+
+
+➡️ Zod throws an error ❌
+
+6️⃣ Why YOU need this in MCP tools
+
+In your MCP code:
+
+server.tool(
+  "addTwoNumbers",
+  "Add two numbers",
+  {
+    a: z.number(),
+    b: z.number()
+  },
+  async (arg) => { ... }
+);
+
+
+Zod ensures:
+
+AI sends numbers
+
+Not strings
+
+Not garbage data
+
+👉 Without Zod, AI could break your server.
+
+3️⃣ What parse means in Zod
+
+Using Zod, parse() means:
+
+“Check if this data matches the schema.
+If yes → return data
+If no → throw error ❌”
+
+---------------------------------------------------------------------------
+
+const server = new McpServer({
+    name: "example-server",
+    version: "1.0.0"
+});
+
+This line creates a new MCP server instance using the McpServer class and configures it with a name and version.
+
+Why is this REQUIRED?
+
+Without this line:
+
+No MCP server exists
+
+No tools can be registered
+
+AI cannot connect
+
+This is the foundation of everything.
+
+const server = .......
+
+server contains:
+
+1) Registered tools
+
+2) Server metadata
+
+3) Connection handlers
+
+4) Internal MCP logic
+
+So later you can do:
+
+server.tool(...)
+server.connect(...)
+
+1️⃣ What is McpServer?
+
+McpServer is a class provided by the MCP SDK.
+
+Think of it as a blueprint for creating an MCP server.
+
+Blueprint → McpServer
+Actual thing → server
+
+-------------------------------------------------------------------------------------
+
+const app = express();
+Creating Express App (HTTP body)
+
+
+👉 Express handles:
+
+1) routes
+
+2) SSE connection
+
+3) message passing
+
+------------------------------------------------------------------------------------------
+
+server.tool(             //server.tool() means: “Register a tool that an AI can call.”
+    "addTwoNumbers",     //1st argument: "addTwoNumbers" This is the tool name.AI uses this exact name to call the tool.Must be unique
+    "Add two numbers",   //2nd argument: "Add two numbers" This is the description.  Helps AI understand when to use the tool  Natural language guidance  Better description = better AI decisions.
+    {                    //3rd argument: input schema (Zod)   //This tells MCP:  “This tool requires two numbers: a and b.”  What happens:  1)AI sends arguments  2)Zod parses & validates  3)Invalid input → tool will NOT run ❌  This is critical for safety.
+        a: z.number(),
+        b: z.number()
+    },
+    async (arg) => {     //4th argument: the actual function. This is the tool implementation.  arg = validated input  Already safe to use  No need to re-check types
+        const { a, b } = arg; //Destructuring the input. This means:  Extract a and b  From the validated input object  Equivalent to:  const a = arg.a; const b = arg.b;
+        return {         //This is MCP’s response format.
+            content: [   //content → array (can contain many messages) 
+                {
+                    type: "text",          // type: "text" → plain text output
+                    text: `The sum of ${a} and ${b} is ${a + b}`
+                }
+            ]
+        }
+    }
+)
+
+This code registers an MCP tool named addTwoNumbers, validates its inputs using Zod, executes the logic,
+and returns a structured text response to the AI.
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+5️⃣ Tool 2 – createPost (Real-world tool)
+server.tool(
+    "createPost",
+    "Create a post on X formally known as Twitter ", {
+    status: z.string()
+}, async (arg) => {
+    const { status } = arg;
+    return createPost(status);
+})
+
+
+👉 AI can now post to X via my backend
+This is REAL automation.
+
+AI must send:
+
+{ "status": "Hello World" }
+
+MCP → validation + routing
+
+mcp.tool.js → actual API call
+
+1️⃣ What is status? (plain English)
+
+status = the text/content of a post you want to publish on X (Twitter)
+
+2️⃣ Why the word “status”?
+
+Originally on Twitter:
+
+A post was called a status update
+
+So APIs still use the word status
+
+Even today, internally:
+
+status = tweet text
+
+------------------------------------------------------------------------------------------
+
+6️⃣ Why SSE? (Core concept)
+❌ Normal HTTP
+
+Request → Response → Close
+
+✅ SSE
+
+Connection stays open
+
+Server pushes updates anytime
+
+AI tools often need this.
+
+-----------------------------------------------------------------------------------
+
+const transports = {}; creates an object used to store and manage active transport connections, typically mapping client sessions to their SSE transports.
+
+const transports = {};
+
+
+👉 Why?
+
+Many clients can connect
+
+Each client gets a sessionId
+
+2️⃣ Why is it called transports?
+
+Because it will be used to store active transport connections.
+
+In MCP (especially with SSE):
+
+Each client connection has its own transport
+
+You need to keep track of them
+
+So you store them in an object
+
+3️⃣ What will go INSIDE transports?
+
+Later in code, you’ll see something like:
+
+transports[sessionId] = transport;
+
+
+So it becomes:
+
+{
+  "abc123": transportObject1,
+  "xyz456": transportObject2
+}
+
+
+Each key:
+
+Represents a connected client
+
+Maps to its SSE transport
+
+-----------------------------------------------------------------------------------
+
+This route establishes an SSE connection, creates an MCP transport for the client, tracks it by session ID, cleans it up on disconnect, and connects it to the MCP server.
+
+app.get("/sse", async (req, res) => {
+    const transport = new SSEServerTransport('/messages', res);
+    transports[ transport.sessionId ] = transport;
+    res.on("close", () => {
+        delete transports[ transport.sessionId ];
+    });
+    await server.connect(transport);
+});
+
+1️⃣ app.get("/sse", ...)
+
+This means:
+
+“When someone opens /sse, run this code.”
+
+/sse is a special endpoint
+
+It is NOT a normal API response
+
+It opens a long-lived connection
+
+Think:
+
+Browser / AI connects → connection stays open
+
+2️⃣ Creating the SSE transport
+const transport = new SSEServerTransport('/messages', res);
+
+
+This line does a lot.
+
+What it does:
+
+Creates a new SSE communication channel
+
+Uses the HTTP response (res)
+
+Sets /messages as the message endpoint
+
+So now:
+
+transport = a pipe through which MCP can talk to the client
+
+📌 Important:
+
+SSE uses one open HTTP connection
+
+Server keeps sending messages on it
+
+3️⃣ Storing the transport
+transports[ transport.sessionId ] = transport;
+
+
+Every transport has a unique session ID.
+
+Why this matters:
+
+Multiple clients can connect
+
+Each client needs its own transport
+
+You must keep track of them
+
+4️⃣ Handling client disconnect
+res.on("close", () => {
+    delete transports[ transport.sessionId ];
+});
+
+
+This runs when:
+
+Client closes tab
+
+AI disconnects
+
+Network drops
+
+What it does:
+
+Removes the transport from memory
+
+Prevents memory leaks
+
+5️⃣ Connecting transport to MCP server
+await server.connect(transport);
+
+
+This is the final and most important step.
+
+It means:
+
+“Attach this communication pipe to my MCP server.”
+
+After this:
+
+MCP server knows about this client
+
+AI can discover tools
+
+AI can call tools
+
+Responses flow through SSE
+
+1️⃣ What /sse does (you already saw this)
+app.get("/sse", ...)
+
+
+Opens an SSE connection
+
+Used for:
+
+tool results
+
+responses
+
+server events
+
+👉 Direction: Server → Client
+
+Think:
+
+“Server keeps talking, client keeps listening.”
+
+2️⃣ What /messages does 
+new SSEServerTransport("/messages", res);
+
+
+This tells MCP:
+
+“When the client wants to SEND something to me,
+it should POST it to /messages.”
+
+👉 Direction: Client → Server
+
+3️⃣ Why SSE alone is not enough
+
+SSE is one-way by design:
+
+❌ Client cannot send data back on SSE
+
+✅ Server can only push data
+
+So MCP needs:
+
+SSE → server ➜ client
+
+HTTP POST → client ➜ server
+
+That POST endpoint is /messages.
+
+🔒 Final takeaway
+
+/sse opens a live channel
+
+SSEServerTransport = communication pipe
+
+transports = active connections registry
+
+server.connect() = enable MCP
+
+SSE = listen only
+
+/messages = talk back
+
+Together = full duplex communication
+
+MCP needs both
+
+------------------------------------------------------------------------------------
+
+app.post("/messages", async (req, res) => {
+    const sessionId = req.query.sessionId;
+    const transport = transports[ sessionId ];
+    if (transport) {
+        await transport.handlePostMessage(req, res);
+    } else {
+        res.status(400).send('No transport found for sessionId');
+    }
+});
+
+This route handles incoming MCP messages by identifying the client session, routing the message to the correct SSE transport, and letting the MCP SDK process it safely.
+
+This route handles:
+
+Messages sent FROM the client (AI) TO your MCP server
+
+app.post("/messages", async (req, res) => {
+This means:
+
+“When the client sends a POST request to /messages, run this code.”
+
+These POST requests contain:
+
+MCP protocol messages
+
+Tool calls
+
+Arguments
+
+Control messages
+
+3️⃣ Getting the sessionId
+const sessionId = req.query.sessionId;
+
+
+The client sends requests like:
+
+POST /messages?sessionId=a9f3k21
+
+
+So:
+
+sessionId identifies which SSE connection this message belongs to
+
+This ties the POST request to the correct client
+
+Without this → server wouldn’t know who sent the message.
+
+const transport = transports[ sessionId ];
+Recall:
+transports = {
+  "a9f3k21": transportObject
+}
+So this line means:
+
+“Get the communication pipe for this client.”
+
+5️⃣ If transport exists ✅
+if (transport) {
+    await transport.handlePostMessage(req, res);
+}
+
+
+This is the core logic.
+
+What handlePostMessage does:
+
+Reads the MCP message from req
+
+Processes it according to MCP protocol
+
+Triggers tool calls if needed
+
+Sends responses back via SSE
+
+👉 You don’t parse JSON manually
+👉 You don’t route messages yourself
+👉 MCP SDK does it for you
+
+This is why MCP is powerful.
+
+6️⃣ If transport does NOT exist ❌
+else {
+    res.status(400).send('No transport found for sessionId');
+}
+
+
+This happens if:
+
+Client sends an invalid sessionId
+
+SSE connection was already closed
+
+Server restarted
+
+So you:
+
+Return HTTP 400 Bad Request
+
+Tell client the session is invalid
+
+This prevents:
+
+Ghost messages
+
+Crashes
+
+Undefined behavior
+
+---------------------------------------------------------
+
+app.listen(3001) starts the Express server and makes it listen for incoming HTTP requests on port 3001.
+
+app.listen(3001, () => {
+    console.log("Server is running on http://localhost:3001");
+});
+                                   
+                                  (server side code done)
+----------------------------------------------------------------------------------------------
